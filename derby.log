@@ -1,0 +1,13 @@
+----------------------------------------------------------------
+Mon Mar 11 09:25:38 CST 2019:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.10.2.0 - (1582446): instance a816c00e-0169-6a5a-ed25-0000068f3f98 
+on database directory /home/zhangjiaqian/IdeaProjects/scalaWordCount/metastore_db with class loader org.apache.spark.sql.hive.client.IsolatedClientLoader$$anon$1@6872f9c8 
+Loaded from file:/home/zhangjiaqian/.m2/repository/org/apache/derby/derby/10.10.2.0/derby-10.10.2.0.jar
+java.vendor=Oracle Corporation
+java.runtime.version=1.8.0_171-b11
+user.dir=/home/zhangjiaqian/IdeaProjects/scalaWordCount
+os.name=Linux
+os.arch=amd64
+os.version=4.4.0-142-generic
+derby.system.home=null
+Database Class Loader started - derby.database.classpath=''
