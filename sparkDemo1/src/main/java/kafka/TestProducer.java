@@ -32,6 +32,7 @@ import java.util.Properties;
 public class TestProducer {
     @Test
     public void testSend(){
+        //利用api模拟生产者
         Properties props = new Properties();
         props.put("metadata.broker.list","localhost:9092");
         props.put("serializer.class","kafka.serializer.StringEncoder");
@@ -47,6 +48,7 @@ public class TestProducer {
 
     @Test
     public void testConsumer(){
+        //利用api模拟消费者
         Properties props = new Properties();
         props.put("zookeeper.connect","localhost:2181");
         props.put("metadata.broker.list","localhost:9092");
