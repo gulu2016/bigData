@@ -1,0 +1,207 @@
+//public class AdClickedStreamingStats {
+//    public static void main(String[] args) {
+//        //配置SparkConf
+//        //至少两个线程，一个用于接收数据，另一个处理数据
+//        SparkConf conf = new SparkConf().setMaster("local[3]").setAppName("AdClickedStreamingStats");
+//
+//        //创建SparkStreamingContext
+//        //SparkStreamingContext是应用程序调度的核心
+//        JavaStreamingContext jsc = new JavaStreamingContext(conf, Durations.seconds(10));
+//        //设置检查点
+//        jsc.checkpoint("/home/zhangjiaqian/kafka/checkPoints");
+//
+//        //创建kafka元数据，让Spark Streaming作为消费者消费kafka的数据
+//        Map<String, String> kafkaParameters = new HashMap<>();
+//        kafkaParameters.put("metadata.broker.list", "localhost:9092");
+//
+//        Set<String> topics = new HashSet<>();
+//        topics.add("AdClicked");
+//
+//        JavaPairInputDStream<String, String> adClickedStreaming =
+//                KafkaUtils.createDirectStream(jsc,
+//                        String.class,
+//                        String.class,
+//                        StringDecoder.class,
+//                        StringDecoder.class,
+//                        kafkaParameters,
+//                        topics);
+//
+//        JavaPairDStream<String, String> filteredadClickedStreaming =
+//                adClickedStreaming
+//                        .transformToPair(new Function<JavaPairRDD<String, String>, JavaPairRDD<String, String>>() {
+//                    @Override
+//                    public JavaPairRDD<String, String> call(JavaPairRDD<String, String> rdd) throws Exception {
+//                        //黑名单过滤思路
+//                        //从数据库中读取黑名单，并封装成RDD
+//                        //将代表黑名单的RDD和Batch产生的RDD进行leftOuterJoin操作，过滤掉两者都有的内容
+//                        final List<String> blackListNames = new ArrayList<>();
+//                        JDBCWrapper jdbcWrapper = JDBCWrapper.getJDBCInstance();
+//                        jdbcWrapper.doQuery("select * from blacklisttable", null,
+//                                new ExecuteCallBack() {
+//                                    @Override
+//                                    public void resultCallBack(ResultSet result) throws Exception {
+//                                        while (result.next()) {
+//                                            blackListNames.add(result.getString(1));
+//                                        }
+//                                    }
+//                                });
+//                        List<Tuple2<String, Boolean>> blackListTuple = new ArrayList<>();
+//                        for (String name : blackListNames)
+//                            blackListTuple.add(new Tuple2<>(name, true));
+//                        List<Tuple2<String, Boolean>> blackListFromDB = blackListTuple;
+//
+//                        JavaSparkContext jsc = new JavaSparkContext(rdd.context());
+//
+//                        JavaPairRDD<String, Boolean> blackListRDD = jsc.parallelizePairs(blackListFromDB);
+//
+//                        JavaPairRDD<String, Tuple2<String, String>> rdd2Pair =
+//                                rdd.mapToPair(new PairFunction<Tuple2<String, String>, String, Tuple2<String, String>>() {
+//                                    @Override
+//                                    public Tuple2<String, Tuple2<String, String>> call(Tuple2<String, String> t) throws Exception {
+//                                        String userID = t._2.split("\t")[2];
+//                                        return new Tuple2<>(userID, t);
+//                                    }
+//                                });
+//
+//                        JavaPairRDD<String, Tuple2<Tuple2<String, String>, Optional<Boolean>>>
+//                                joined = (JavaPairRDD<String, Tuple2<Tuple2<String, String>, Optional<Boolean>>>)
+//                                rdd2Pair.leftOuterJoin(blackListRDD);
+//
+//                        JavaPairRDD<String, String> result = joined.filter(
+//                                new Function<Tuple2<String, Tuple2<Tuple2<String, String>, Optional<Boolean>>>, Boolean>() {
+//                                    @Override
+//                                    public Boolean call(Tuple2<String, Tuple2<Tuple2<String, String>, Optional<Boolean>>> v1) throws Exception {
+//                                        Optional<Boolean> optional = v1._2._2;
+//                                        if (optional.isPresent() && optional.get())
+//                                            return false;
+//                                        else
+//                                            return true;
+//                                    }
+//                                }
+//                        ).mapToPair(new PairFunction<Tuple2<String, Tuple2<Tuple2<String, String>, Optional<Boolean>>>, String, String>() {
+//                            @Override
+//                            public Tuple2<String, String> call(Tuple2<String, Tuple2<Tuple2<String, String>, Optional<Boolean>>> t) throws Exception {
+//                                return t._2._1;
+//                            }
+//                        });
+//                        return result;
+//                    }});
+//        filteredadClickedStreaming.print();
+//
+//        //基于DStream进行编程
+//        //把每个Batch的SDtream的操作翻译成对RDD的操作
+//        JavaPairDStream<String, Long> paris = filteredadClickedStreaming
+//                .mapToPair(new PairFunction<Tuple2<String, String>, String, Long>() {
+//                    @Override
+//                    public Tuple2<String, Long> call(Tuple2<String, String> t) throws Exception {
+//                        String[] splited = t._2.split("\t");
+//
+//                        String timestamp = splited[0];
+//                        String ip = splited[1];
+//                        String userID = splited[2];
+//                        String adID = splited[3];
+//                        String province = splited[4];
+//                        String city = splited[5];
+//
+//                        String clickedRecord = timestamp + "_" + ip + "_" + userID +
+//                                "_" + adID + "_" + province + "_" + city;
+//
+//                        return new Tuple2<>(clickedRecord, 1L);
+//                    }
+//                });
+//
+//        //计算每个Batch Duration中每个User的广告点击量
+//        JavaPairDStream<String, Long> adClickedUsers = paris.reduceByKey(
+//                new Function2<Long, Long, Long>() {
+//                    @Override
+//                    public Long call(Long v1, Long v2) throws Exception {
+//                        return v1 + v2;
+//                    }
+//                }
+//        );
+//
+//        JavaPairDStream<String, Long> filteredClickInBatch = adClickedUsers
+//                .filter(new Function<Tuple2<String, Long>, Boolean>() {
+//                    @Override
+//                    public Boolean call(Tuple2<String, Long> v1) throws Exception {
+//                        if (v1._2 > 1)
+//                            return false;
+//                        else
+//                            return true;
+//                    }
+//                });
+//        filteredadClickedStreaming.foreachRDD(new Function<JavaPairRDD<String, Long>, Void>() {
+//            @Override
+//            public Void call(JavaPairRDD<String, Long> rdd) throws Exception {
+//                rdd.foreachPartition(new VoidFunction<Iterator<Tuple2<String, Long>>>() {
+//                    @Override
+//                    public void call(Iterator<Tuple2<String, Long>> partition) throws Exception {
+//                        List<UserAdClicked> userAdClickedList = new ArrayList<>();
+//                        while (partition.hasNext()) {
+//                            Tuple2<String, Long> record = partition.next();
+//                            String[] splited = record._1.split("_");
+//                            UserAdClicked userAdClicked = new UserAdClicked();
+//
+//                            userAdClicked.setTimestamp(splited[0]);
+//                            userAdClicked.setIp(splited[1]);
+//                            userAdClicked.setUserID(splited[2]);
+//                            userAdClicked.setAdID(splited[3]);
+//                            userAdClicked.setProvince(splited[4]);
+//                            userAdClicked.setCity(splited[5]);
+//                            userAdClickedList.add(userAdClicked);
+//                        }
+//
+//                        final List<UserAdClicked> inserting = new ArrayList<>();
+//                        final List<UserAdClicked> updating = new ArrayList<>();
+//
+//                        JDBCWrapper jdbcWrapper = JDBCWrapper.getJDBCInstance();
+//
+//                        //将数据插入点击表
+//                        for (final UserAdClicked clicked : userAdClickedList) {
+//                            jdbcWrapper.doQuery(
+//                                    "select count(1) from adclicked where" +
+//                                            "timestamp = ? and userID = ? and adID = ?",
+//                                    new Object[]{clicked.getTimestamp(), clicked.getUserID(),
+//                                            clicked.getAdID()}, new ExecuteCallBack() {
+//                                        @Override
+//                                        public void resultCallBack(ResultSet result) throws Exception {
+//                                            if (result.getRow() != 0) {
+//                                                long count = result.getLong(1);
+//                                                clicked.setClickedCount(count);
+//                                                updating.add(clicked);
+//                                            } else {
+//                                                clicked.setClickedCount(0L);
+//                                                inserting.add(clicked);
+//                                            }
+//                                        }
+//                                    });
+//                            ArrayList<Object[]> insertParametersList = new ArrayList<>();
+//                            for (UserAdClicked insertRecord : inserting) {
+//                                insertParametersList.add(new Object[]{insertRecord.getTimestamp(),
+//                                        insertRecord.getIp(),
+//                                        insertRecord.getUserID(), insertRecord.getAdID(),
+//                                        insertRecord.getProvince(),
+//                                        insertRecord.getCity(), insertRecord.getClickedCount()});
+//                            }
+//                            jdbcWrapper.doBatch("insert into adclicked values(?,?,?,?,?,?,?)", insertParametersList);
+//                            ArrayList<Object[]> updateParametersList = new ArrayList<>();
+//                            for (UserAdClicked updateRecord : updating) {
+//                                updateParametersList.add(new Object[]{
+//                                        updateRecord.getTimestamp(), updateRecord.getIp(),
+//                                        updateRecord.getUserID(), updateRecord.getAdID(),
+//                                        updateRecord.getProvince(),
+//                                        updateRecord.getCity(),
+//                                        updateRecord.getClickedCount()});
+//                            }
+//                            jdbcWrapper.doBatch("update adclicked set clickedCount = ? where" +
+//                                    " timestamp = ? and ip = ? and userID = ? and adID = ? and province = ? and" +
+//                                    " city = ? ", updateParametersList);
+//                        }
+//                    };
+//                });
+//                return null;
+//            }
+//            });
+//        }
+//    }
+//}
